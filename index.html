@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User proxy vs application proxy: who does the proxy work for?</title>
+  <meta name="description" content="A plain-language explainer of the difference between a user (forward) proxy and an application (reverse) proxy: how each works, what each party can see, when to use which, common misconceptions and a self-check quiz.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&family=Noto+Sans+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    /* ------------------------------------------------------------------
+       Design tokens — palette, spacing, type. Edit values here, not in
+       component CSS. Swap --accent to one of the curated alternatives;
+       do not introduce a second accent.
+       ------------------------------------------------------------------ */
+    :root {
+      /* Light palette (default) */
+      --bg: #FAFAFA;
+      --surface: #FFFFFF;
+      --text: #0A0A0A;
+      --text-muted: #6B7280;
+      --border: #E5E7EB;
+      --border-strong: #D1D5DB;
+
+      /* Pick exactly ONE accent. Alternatives commented for reference. The
+         default violet is the brightest that still clears 4.5:1 on --bg, so it
+         reads on white and glows on black. Do not brighten it. */
+      --accent: #AD1FFF;        /* electric violet (default) */
+      /* --accent: #2563EB; */  /* restrained blue */
+      /* --accent: #4F46E5; */  /* indigo */
+      /* --accent: #059669; */  /* emerald */
+      /* --accent: #EA580C; */  /* warm orange */
+      --accent-hover: color-mix(in srgb, var(--accent) 88%, black);
+      --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--bg));
+
+      /* Categorical (data-viz) palette. ROYGBIV for charts, multi-series
+         diagrams, or taxonomy badges only. Do NOT use for CTAs, headings,
+         links, or chrome — the one-accent rule above still applies. cat-6
+         matches the indigo accent alternative. */
+      --cat-1: #DC2626;  /* red */
+      --cat-2: #EA580C;  /* orange */
+      --cat-3: #CA8A04;  /* yellow */
+      --cat-4: #16A34A;  /* green */
+      --cat-5: #2563EB;  /* blue */
+      --cat-6: #4F46E5;  /* indigo */
+      --cat-7: #7C3AED;  /* violet */
+
+      /* Semantic state, used only by the quiz verdicts and the misconception marks. */
+      --state-ok: var(--cat-4);
+      --state-bad: var(--cat-1);
+
+      /* Spacing scale: 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96 */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --space-9: 96px;
+
+      /* Type */
+      --font-sans: "Noto Sans", -apple-system, BlinkMacSystemFont, "Inter", "Geist", "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Noto Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --fs-body: 18px;
+      --fs-mono: 14px;
+      --fs-small: 14px;
+      --fs-h1: clamp(2.25rem, 1.5rem + 3vw, 3.75rem);
+      --fs-h2: clamp(1.5rem, 1.1rem + 1.5vw, 2.25rem);
+      --fs-h3: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
+      --leading-body: 1.65;
+      --leading-tight: 1.2;
+      --tracking-tight: -0.02em;
+
+      /* Layout */
+      --radius: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(10, 10, 10, 0.04);
+      --shadow: 0 1px 3px rgba(10, 10, 10, 0.06), 0 1px 2px rgba(10, 10, 10, 0.04);
+      /* Neon halo. Empty here; the dark theme switches it on. */
+      --glow: 0 0 0 0 transparent;
+      --max-width: 960px;
+      --transition: 180ms ease;
+    }
+
+    [data-theme="dark"] {
+      /* Neon on near-black: cool-tinted darks, fully saturated signal colours. */
+      --bg: #050508;
+      --surface: #0D0D14;
+      --text: #F5F5F5;
+      --text-muted: #9CA3AF;
+      --border: #22222E;
+      --border-strong: #3A3A4D;
+      --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--bg));
+      /* Categorical palette — neon for near-black backgrounds. */
+      --cat-1: #FF3355;
+      --cat-2: #FF8A1F;
+      --cat-3: #FFE600;
+      --cat-4: #39FF14;
+      --cat-5: #00E5FF;
+      --cat-6: #5C7CFF;
+      --cat-7: #D24DFF;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.3);
+      --glow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+
+    /* ------------------------------------------------------------------
+       Reset and base
+       ------------------------------------------------------------------ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: var(--fs-body);
+      line-height: var(--leading-body);
+      -webkit-font-smoothing: antialiased;
+      transition: background-color var(--transition), color var(--transition);
+    }
+    h1, h2, h3, h4 {
+      font-weight: 700;
+      letter-spacing: var(--tracking-tight);
+      line-height: var(--leading-tight);
+      margin: 0;
+    }
+    h1 { font-size: var(--fs-h1); }
+    h2 { font-size: var(--fs-h2); }
+    h3 { font-size: var(--fs-h3); }
+    p { margin: 0; }
+    code, pre, kbd { font-family: var(--font-mono); font-size: var(--fs-mono); }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: color var(--transition);
+    }
+    a:hover { color: var(--accent-hover); }
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ------------------------------------------------------------------
+       Layout primitives
+       ------------------------------------------------------------------ */
+    .container {
+      width: 100%;
+      max-width: var(--max-width);
+      margin-inline: auto;
+      padding-inline: var(--space-5);
+    }
+    .stack > * + * { margin-top: var(--space-5); }
+    .stack-lg > * + * { margin-top: var(--space-7); }
+
+    /* ------------------------------------------------------------------
+       Header / nav
+       ------------------------------------------------------------------ */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: color-mix(in srgb, var(--bg) 90%, transparent);
+      backdrop-filter: saturate(180%) blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .site-header .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding-block: var(--space-4);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-weight: 700;
+      letter-spacing: var(--tracking-tight);
+      color: var(--text);
+    }
+    .brand-mark {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: var(--glow);
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .nav a {
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+      padding: var(--space-2) var(--space-3);
+      border-radius: 6px;
+      transition: color var(--transition), background-color var(--transition);
+    }
+    .nav a:hover { color: var(--text); background: var(--surface); }
+    @media (max-width: 720px) { .nav a { display: none; } }
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      transition: background-color var(--transition), border-color var(--transition);
+    }
+    .icon-button:hover { background: var(--surface); border-color: var(--border-strong); }
+    .icon-button svg { width: 18px; height: 18px; }
+    [data-theme="light"] #icon-moon { display: block; }
+    [data-theme="light"] #icon-sun { display: none; }
+    [data-theme="dark"]  #icon-moon { display: none; }
+    [data-theme="dark"]  #icon-sun  { display: block; }
+
+    /* ------------------------------------------------------------------
+       Hero
+       ------------------------------------------------------------------ */
+    .hero {
+      padding-block: var(--space-9) var(--space-8);
+      text-align: center;
+    }
+    .eyebrow {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--space-4);
+    }
+    .hero h1 {
+      max-width: 28ch;
+      margin-inline: auto;
+    }
+    .hero .lede {
+      max-width: 60ch;
+      margin-inline: auto;
+      color: var(--text);
+      font-size: 1.25rem;
+      margin-top: var(--space-5);
+    }
+    .hero .updated {
+      margin-top: var(--space-4);
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+    }
+
+    /* Colour legend for the two proxy types */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: var(--space-3);
+      margin-top: var(--space-6);
+      list-style: none;
+      padding: 0;
+    }
+    .legend li {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: var(--fs-small);
+      color: var(--text-muted);
+      background: var(--surface);
+      text-align: left;
+    }
+    .legend .swatch { width: 14px; height: 14px; border-radius: 4px; background: var(--type); flex: none; }
+    .legend strong { color: var(--text); }
+
+    /* Personal branding row */
+    .branding {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: var(--space-2);
+      margin-top: var(--space-6);
+      list-style: none;
+      padding: 0;
+    }
+    .branding a {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+      transition: color var(--transition), border-color var(--transition);
+    }
+    .branding a:hover { color: var(--text); border-color: var(--border-strong); }
+    .branding svg { width: 16px; height: 16px; }
+
+    /* ------------------------------------------------------------------
+       Section + cards
+       ------------------------------------------------------------------ */
+    section { padding-block: var(--space-8); border-top: 1px solid var(--border); scroll-margin-top: 80px; }
+    .section-narrow .container { max-width: 820px; }
+    .section-head { max-width: 64ch; margin-bottom: var(--space-7); }
+    .section-head h2 { margin-bottom: var(--space-3); }
+    .section-head p { color: var(--text-muted); }
+    .section-head p + p { margin-top: var(--space-3); }
+
+    .grid {
+      display: grid;
+      gap: var(--space-5);
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 640px) {
+      .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .card:hover { border-color: var(--border-strong); box-shadow: var(--shadow), var(--glow); }
+    .card h3 { margin-bottom: var(--space-2); }
+    .card p { color: var(--text-muted); font-size: 1rem; }
+    .card p + p { margin-top: var(--space-3); }
+
+    /* Prose wrapper — caps line length, restores paragraph spacing */
+    .prose { max-width: 68ch; }
+    .prose p + p { margin-top: var(--space-4); }
+    .prose .muted { color: var(--text-muted); }
+    .prose code, td code, dd code, li code, .callout code, .sees code {
+      background: var(--surface);
+      padding-inline: var(--space-1);
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    dfn { font-style: normal; font-weight: 700; }
+    .subhead { margin-bottom: var(--space-4); }
+
+    /* ------------------------------------------------------------------
+       Proxy-type colour. One variable, two values, from the categorical
+       palette: orange for the user proxy, blue for the application proxy.
+       It tints badges, rules, diagram nodes and lines — never heading text.
+       ------------------------------------------------------------------ */
+    .type-user { --type: var(--cat-2); }
+    .type-app  { --type: var(--cat-5); }
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text);
+      background: color-mix(in srgb, var(--type) 14%, var(--surface));
+      border: 1px solid var(--type);
+    }
+    .type-badge::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--type); }
+    .section-head .type-badge { margin-bottom: var(--space-3); }
+    .section-head.typed { border-left: 4px solid var(--type); padding-left: var(--space-5); }
+    .card.typed { border-top: 4px solid var(--type); }
+    .card .type-badge { margin-bottom: var(--space-4); }
+    .card ul.map { margin: var(--space-4) 0 0; padding-left: var(--space-5); color: var(--text-muted); font-size: 1rem; }
+    .card ul.map li + li { margin-top: var(--space-1); }
+    .card ul.map strong { color: var(--text); }
+
+    /* ------------------------------------------------------------------
+       TL;DR card
+       ------------------------------------------------------------------ */
+    .tldr {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+    }
+    .tldr-label {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: var(--space-3);
+    }
+    .tldr .lead {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: var(--tracking-tight);
+      line-height: 1.35;
+      margin-bottom: var(--space-5);
+      max-width: 60ch;
+    }
+    .tldr ul { margin: 0; padding-left: var(--space-5); color: var(--text-muted); }
+    .tldr li + li { margin-top: var(--space-2); }
+    .tldr li strong { color: var(--text); }
+
+    /* ------------------------------------------------------------------
+       Callout
+       ------------------------------------------------------------------ */
+    .callout {
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      padding: var(--space-5);
+      border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    }
+    .callout h3 { margin-bottom: var(--space-2); font-size: 1.125rem; }
+    .callout p { font-size: 1rem; }
+    .callout p + p { margin-top: var(--space-3); }
+    .callout ul { margin: var(--space-3) 0 0; padding-left: var(--space-5); font-size: 1rem; }
+    .callout li + li { margin-top: var(--space-2); }
+    .callout ul + p { margin-top: var(--space-3); }
+
+    /* ------------------------------------------------------------------
+       Comparison table
+       ------------------------------------------------------------------ */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+    }
+    .table-wrap + .table-wrap, .table-wrap + h3, h3 + .table-wrap { margin-top: var(--space-5); }
+    table.compare {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1rem;
+    }
+    table.compare th,
+    table.compare td {
+      text-align: left;
+      padding: var(--space-4) var(--space-5);
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+    }
+    table.compare thead th {
+      font-size: var(--fs-small);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      background: var(--bg);
+    }
+    table.compare thead th.typed {
+      color: var(--text);
+      border-top: 4px solid var(--type);
+    }
+    table.compare tbody tr:last-child th,
+    table.compare tbody tr:last-child td { border-bottom: 0; }
+    table.compare th[scope="row"] {
+      font-weight: 700;
+      color: var(--text);
+      min-width: 150px;
+    }
+    table.compare td { color: var(--text-muted); min-width: 220px; }
+    table.compare td strong { color: var(--text); }
+    table.compare tbody td:nth-child(2) { --type: var(--cat-2); }
+    table.compare tbody td:nth-child(3) { --type: var(--cat-5); }
+    table.compare .verdict {
+      display: block;
+      width: fit-content;
+      padding: 0 var(--space-2);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      background: var(--surface);
+      margin-bottom: var(--space-1);
+    }
+    table.compare .verdict.core { border-color: var(--type); background: color-mix(in srgb, var(--type) 14%, var(--surface)); }
+
+    /* ------------------------------------------------------------------
+       Step list, "who sees what" strip, scenario lists
+       ------------------------------------------------------------------ */
+    ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; display: grid; gap: var(--space-4); }
+    ol.steps li { counter-increment: step; display: grid; grid-template-columns: 32px 1fr; gap: var(--space-4); align-items: start; font-size: 1rem; }
+    ol.steps li::before {
+      content: counter(step);
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: 2px solid var(--type);
+      background: color-mix(in srgb, var(--type) 14%, var(--surface));
+      color: var(--text);
+      font-weight: 700;
+      font-size: var(--fs-small);
+    }
+    ol.steps strong { color: var(--text); }
+    ol.steps li { color: var(--text-muted); }
+
+    .sees { display: grid; gap: var(--space-4); grid-template-columns: 1fr; }
+    @media (min-width: 720px) { .sees { grid-template-columns: repeat(3, 1fr); } }
+    .sees > div {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      font-size: 1rem;
+      color: var(--text-muted);
+    }
+    .sees > div.is-type { border: 2px solid var(--type); }
+    .sees h4 {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--fs-small);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: var(--space-3);
+    }
+    .sees h4 svg { width: 16px; height: 16px; flex: none; color: var(--text-muted); }
+    .sees p + p { margin-top: var(--space-3); }
+
+    ul.scenarios { list-style: none; padding: 0; margin: var(--space-4) 0 0; display: grid; gap: var(--space-4); }
+    ul.scenarios li { padding-left: var(--space-4); border-left: 3px solid var(--type); color: var(--text-muted); font-size: 1rem; }
+    ul.scenarios strong { display: block; color: var(--text); }
+
+    .both {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+    }
+    .both h3 { margin-bottom: var(--space-3); }
+    .both .badges { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+    .both p { color: var(--text-muted); font-size: 1rem; }
+    .both p + p { margin-top: var(--space-3); }
+
+    /* ------------------------------------------------------------------
+       Misconceptions and quiz
+       ------------------------------------------------------------------ */
+    ul.myths { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-4); }
+    ul.myths li {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+    }
+    .myth-claim { display: flex; gap: var(--space-3); align-items: flex-start; font-weight: 700; }
+    .myth-claim svg { width: 20px; height: 20px; flex: none; margin-top: var(--space-1); color: var(--state-bad); }
+    .myth-truth { margin-top: var(--space-3); color: var(--text-muted); font-size: 1rem; }
+    .myth-truth strong { color: var(--text); }
+
+    .quiz { display: grid; gap: var(--space-5); }
+    .quiz-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+    }
+    .quiz-q { font-weight: 700; margin-bottom: var(--space-4); }
+    .quiz-q .qn { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-mono); margin-right: var(--space-2); }
+    .quiz-opts { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+    .quiz-opt {
+      width: 100%;
+      display: flex;
+      gap: var(--space-3);
+      align-items: flex-start;
+      text-align: left;
+      font: inherit;
+      font-size: 1rem;
+      line-height: 1.5;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color var(--transition), background-color var(--transition);
+    }
+    .quiz-opt .key { font-family: var(--font-mono); font-size: var(--fs-mono); color: var(--text-muted); flex: none; padding-top: var(--space-1); }
+    .quiz-opt:hover { border-color: var(--accent); }
+    .quiz-item.is-answered .quiz-opt { cursor: default; }
+    .quiz-item.is-answered .quiz-opt:hover { border-color: var(--border-strong); }
+    .quiz-item.is-answered .quiz-opt.is-correct, .quiz-item.is-answered .quiz-opt.is-correct:hover {
+      border-color: var(--state-ok);
+      background: color-mix(in srgb, var(--state-ok) 12%, var(--surface));
+    }
+    .quiz-item.is-answered .quiz-opt.is-wrong, .quiz-item.is-answered .quiz-opt.is-wrong:hover {
+      border-color: var(--state-bad);
+      background: color-mix(in srgb, var(--state-bad) 10%, var(--surface));
+    }
+    .quiz-answer {
+      margin-top: var(--space-4);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+    .quiz-answer[hidden] { display: none; }
+    .quiz-answer strong { color: var(--text); }
+    .quiz-score { margin-top: var(--space-5); color: var(--text-muted); font-size: 1rem; }
+    .quiz-score strong { color: var(--text); }
+
+    /* ------------------------------------------------------------------
+       Glossary and reading list
+       ------------------------------------------------------------------ */
+    dl.glossary {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-5) var(--space-6);
+      margin: 0;
+    }
+    @media (min-width: 720px) {
+      dl.glossary { grid-template-columns: 220px 1fr; }
+    }
+    dl.glossary dt { font-weight: 700; color: var(--text); }
+    dl.glossary dd { margin: 0; color: var(--text-muted); font-size: 1rem; }
+
+    ul.reading {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: var(--space-4);
+    }
+    ul.reading li {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-4) var(--space-5);
+      background: var(--surface);
+      transition: border-color var(--transition);
+    }
+    ul.reading li:hover { border-color: var(--border-strong); }
+    ul.reading a {
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    ul.reading a svg { width: 14px; height: 14px; flex: none; }
+    ul.reading .note {
+      display: block;
+      margin-top: var(--space-1);
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+    }
+
+    /* ------------------------------------------------------------------
+       Diagram frame, animated flows, CALM notation, walkthrough
+       ------------------------------------------------------------------ */
+    .diagram-frame {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      margin: 0;
+    }
+    @media (max-width: 640px) { .diagram-frame { padding: var(--space-4); } }
+    .diagram-frame svg { display: block; width: 100%; height: auto; }
+    .diagram-frame figcaption {
+      margin-top: var(--space-4);
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+      text-align: center;
+    }
+    .diagram-frame.compact {
+      padding: var(--space-5);
+      background: var(--bg);
+      margin-top: var(--space-5);
+    }
+    .diagram-frame.compact figcaption { margin-top: var(--space-3); font-size: 13px; }
+    .viz-scroll { overflow-x: auto; }
+    .viz-scroll > svg { min-width: 640px; }
+
+    .diagram-frame .flow      { fill: none; stroke: var(--text-muted); stroke-width: 1.5; }
+    .diagram-frame .flow-user { fill: none; stroke: var(--cat-2); stroke-width: 2; }
+    .diagram-frame .flow-app  { fill: none; stroke: var(--cat-5); stroke-width: 2; }
+    .ah-mut  { fill: var(--text-muted); }
+    .ah-user { fill: var(--cat-2); }
+    .ah-app  { fill: var(--cat-5); }
+
+    @keyframes flow-drift { to { stroke-dashoffset: -24; } }
+
+    /* Screen only, and only when the reader has not asked for reduced motion: in
+       print and under reduced motion the lines render solid. */
+    @media screen and (prefers-reduced-motion: no-preference) {
+      .diagram-frame :where(.flow, .flow-user, .flow-app) { animation: flow-drift 2400ms linear infinite; }
+      .diagram-frame :where(.flow, .flow-user, .flow-app):where(:not([stroke-dasharray])) { stroke-dasharray: 8 4; }
+    }
+
+    /* Neon, dark theme only: signal strokes glow in their own colour. */
+    @media screen {
+      [data-theme="dark"] .diagram-frame .flow-user { filter: drop-shadow(0 0 4px var(--cat-2)); }
+      [data-theme="dark"] .diagram-frame .flow-app  { filter: drop-shadow(0 0 4px var(--cat-5)); }
+    }
+
+    /* Network container: a CALM `network` node, drawn around the nodes deployed in it. */
+    .calm-network       { fill: currentColor; fill-opacity: 0.06; stroke: currentColor; stroke-opacity: 0.55; stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .calm-network-chip  { fill: var(--surface); stroke: currentColor; stroke-opacity: 0.55; stroke-width: 1; }
+    .calm-network-label { fill: var(--text); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .calm-network-type  { fill: var(--text-muted); font-size: 12px; }
+    .calm-row-label     { fill: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* Node card: icon and node type on the first line, then the name and one detail line */
+    .calm-node-box      { fill: var(--surface); stroke: var(--border-strong); stroke-width: 2; }
+    .calm-node-icon     { color: var(--text-muted); }
+    .calm-node-type     { fill: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .calm-node-name     { fill: var(--text); font-size: 14px; font-weight: 700; }
+    .calm-node-detail   { fill: var(--text-muted); font-size: 12px; }
+    .calm-node.is-user .calm-node-box { stroke: var(--cat-2); fill: color-mix(in srgb, var(--cat-2) 10%, var(--surface)); }
+    .calm-node.is-app  .calm-node-box { stroke: var(--cat-5); fill: color-mix(in srgb, var(--cat-5) 10%, var(--surface)); }
+
+    /* Flow step badge on the line: the order of the step */
+    .calm-step-bg       { fill: var(--text); }
+    .calm-step          { fill: var(--bg); font-size: 11px; font-weight: 700; text-anchor: middle; }
+
+    /* Protocol label on a connects line */
+    .calm-protocol-bg   { fill: var(--surface); fill-opacity: 0.92; }
+    .calm-protocol      { fill: var(--text-muted); font-family: var(--font-mono); font-size: 11px; text-anchor: middle; }
+
+    /* The model the diagram was drawn from, under the figure */
+    .calm-model         { margin-top: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    .calm-model summary { cursor: pointer; font-weight: 700; font-size: 1rem; }
+    .calm-model p       { margin-top: var(--space-3); color: var(--text-muted); font-size: var(--fs-small); }
+    .calm-model pre     { margin: var(--space-3) 0 0; max-height: 60vh; overflow: auto; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); font-size: 13px; line-height: 1.5; }
+
+    /* Walkthrough controls */
+    .walk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
+    .walk-btn {
+      font-family: inherit; font-size: var(--fs-small); font-weight: 700; line-height: 1.2;
+      padding: var(--space-2) var(--space-4); border-radius: 999px;
+      border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+      cursor: pointer;
+      transition: background-color var(--transition), color var(--transition), border-color var(--transition);
+    }
+    .walk-btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+    .walk-btn:disabled { opacity: 0.45; cursor: default; }
+    .walk-btn:disabled:hover { border-color: var(--border-strong); color: var(--text); }
+    .walk-btn.is-primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: var(--glow); }
+    .walk-btn.is-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+    .walk-btn.is-primary:disabled:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .walk-count { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+    .walk-note { flex-basis: 100%; margin: 0; font-size: var(--fs-small); line-height: 1.5; color: var(--text); }
+    [data-walk] svg [data-step] { transition: opacity var(--transition); }
+    [data-walk].is-walking svg [data-step] { opacity: 0.2; }
+    [data-walk].is-walking svg [data-step].is-done { opacity: 0.55; }
+    [data-walk].is-walking svg [data-step].is-current { opacity: 1; }
+    [data-walk].is-walking [data-lane].is-lane-active .calm-node-box { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+
+    /* ------------------------------------------------------------------
+       Footer
+       ------------------------------------------------------------------ */
+    .site-footer {
+      border-top: 1px solid var(--border);
+      padding-block: var(--space-6);
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+    }
+    .site-footer .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
+
+    /* Neon, dark theme only: a soft halo behind the page heading. Screen
+       only, so it never reaches a printed page. */
+    @media screen {
+      [data-theme="dark"] h1 { text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 55%, transparent); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Arrowheads shared by every diagram on the page. -->
+  <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <defs>
+      <marker id="ah-mut"  viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-mut"  d="M0 0 L10 5 L0 10 z"/></marker>
+      <marker id="ah-user" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-user" d="M0 0 L10 5 L0 10 z"/></marker>
+      <marker id="ah-app"  viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-app"  d="M0 0 L10 5 L0 10 z"/></marker>
+    </defs>
+  </svg>
+
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">
+          <!-- Lucide: arrow-right-left -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+        </span>
+        <span>Proxies, explained</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#how-user">User proxy</a>
+        <a href="#how-app">Application proxy</a>
+        <a href="#compare">Compare</a>
+        <a href="#quiz">Quiz</a>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Toggle theme">
+          <!-- Lucide: moon -->
+          <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <!-- Lucide: sun -->
+          <svg id="icon-sun"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container">
+        <span class="eyebrow">Networking explainer</span>
+        <h1 id="hero-title">Who does the proxy work for?</h1>
+        <p class="lede">That single question separates the two kinds of proxy. A <strong>user proxy</strong> speaks to the internet on behalf of your users. An <strong>application proxy</strong> answers the internet on behalf of your applications.</p>
+        <ul class="legend" aria-label="Colour key used throughout this page">
+          <li class="type-user"><span class="swatch" aria-hidden="true"></span><span><strong>Orange</strong> marks the user proxy (forward proxy)</span></li>
+          <li class="type-app"><span class="swatch" aria-hidden="true"></span><span><strong>Blue</strong> marks the application proxy (reverse proxy)</span></li>
+        </ul>
+        <ul class="branding" aria-label="Personal links">
+          <li><a href="https://github.com/jamesbuckett" rel="noopener noreferrer" target="_blank">
+            <!-- Lucide: github -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            GitHub
+          </a></li>
+          <li><a href="https://twitter.com/jamesbuckett" rel="noopener noreferrer" target="_blank">
+            <!-- Lucide: twitter (x glyph) -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
+            Twitter / X
+          </a></li>
+          <li><a href="https://www.linkedin.com/in/jamesbuckett" rel="noopener noreferrer" target="_blank">
+            <!-- Lucide: linkedin -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            LinkedIn
+          </a></li>
+        </ul>
+        <p class="updated">Last updated 19 October 2026</p>
+      </div>
+    </section>
+
+    <section id="tldr" class="section-narrow" aria-labelledby="tldr-title">
+      <div class="container stack-lg">
+        <div class="tldr">
+          <h2 id="tldr-title" class="tldr-label">TL;DR</h2>
+          <p class="lead">A user proxy sits in front of people and makes outbound requests for them. An application proxy sits in front of servers and receives inbound requests for them. Same mechanism, opposite jobs.</p>
+          <ul>
+            <li><strong>Direction.</strong> A user proxy handles traffic going out, from inside your network to the internet. An application proxy handles traffic coming in, from the internet to your servers.</li>
+            <li><strong>Who is hidden.</strong> A user proxy hides the user from the website. An application proxy hides the servers from the visitor.</li>
+            <li><strong>Who sets it up.</strong> A user proxy is configured by whoever manages the users' devices and network. An application proxy is configured by whoever runs the application. The other side usually never knows it is there.</li>
+            <li><strong>Both at once.</strong> Many organisations run one of each: a user proxy for staff browsing out, an application proxy for customers coming in.</li>
+          </ul>
+        </div>
+        <div class="prose">
+          <p>A <dfn>proxy</dfn> is a go-between: a server that receives a web request from one party, forwards it to another, and carries the answer back. The party that asks is the <dfn>client</dfn> (usually a browser or an app on someone's device); the party that answers is the <dfn>server</dfn> (the machine hosting the website or application). Every proxy sits between a client and a server, and every proxy was put there by somebody for a reason.</p>
+          <p>That somebody is the key. If the proxy was put there to serve the clients, it is a user proxy. If it was put there to serve the servers, it is an application proxy. The rest of this page is that one idea, worked through in detail: the analogies, the request flows, a side-by-side comparison, when to use which, the myths, and a short quiz to check it stuck.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="analogies" aria-labelledby="analogies-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="analogies-title">Two analogies</h2>
+          <p>Both proxies are go-betweens. The difference is whose side they are on.</p>
+        </div>
+        <div class="grid grid-2">
+          <article class="card typed type-user">
+            <span class="type-badge">User proxy</span>
+            <h3>The personal assistant who makes your calls</h3>
+            <p>Imagine you never dial a number yourself. You tell your assistant who you want to reach; they place the call, say what you asked them to say, and relay the answer back to you. The person on the other end only ever hears the assistant's voice and sees the assistant's number.</p>
+            <p>The assistant can also refuse to call certain numbers, keep a note of every call made, and, if you ask the same question twice in a day, repeat the earlier answer without dialling again.</p>
+            <ul class="map" aria-label="How the analogy maps to a user proxy">
+              <li><strong>You</strong> are the user, the client.</li>
+              <li><strong>The assistant</strong> is the user proxy.</li>
+              <li><strong>The people being called</strong> are websites on the internet.</li>
+              <li><strong>The rules, the notebook and the memory</strong> are filtering, logging and caching.</li>
+            </ul>
+          </article>
+          <article class="card typed type-app">
+            <span class="type-badge">Application proxy</span>
+            <h3>The receptionist who takes calls for the company</h3>
+            <p>Now imagine a company with one published phone number. Every call lands at reception. The receptionist checks who is calling, turns away nuisance callers, and passes each call to whichever member of staff is free and best placed to help. Callers never learn anyone's direct extension, and if one person is off sick the calls simply go to someone else.</p>
+            <p>Staff get on with their jobs knowing nobody reaches them without going through the front desk.</p>
+            <ul class="map" aria-label="How the analogy maps to an application proxy">
+              <li><strong>The callers</strong> are clients out on the internet.</li>
+              <li><strong>The receptionist</strong> is the application proxy.</li>
+              <li><strong>The staff and their extensions</strong> are the backend servers.</li>
+              <li><strong>Screening, routing and the single number</strong> are authentication, load balancing and hiding the backends.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="how-user" class="type-user" aria-labelledby="how-user-title">
+      <div class="container">
+        <div class="section-head typed">
+          <span class="type-badge">User proxy · forward proxy</span>
+          <h2 id="how-user-title">How a user proxy works</h2>
+          <p>A <dfn>user proxy</dfn>, more often called a <dfn>forward proxy</dfn>, sits between people and the internet. The user's device is told to send every web request to the proxy; the proxy fetches the page and hands it back. The website at the far end deals with the proxy, never with the person.</p>
+          <p>The diagram follows one request from an employee's browser to a public website and back. Press <strong>Walk through</strong> to take it one hop at a time.</p>
+        </div>
+
+        <div class="stack-lg">
+          <div>
+            <figure class="diagram-frame" aria-labelledby="fig-user-caption" data-walk>
+              <div class="viz-scroll" tabindex="0">
+                <svg viewBox="0 0 760 300" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="fig-user-title fig-user-caption">
+                  <title id="fig-user-title">A browser on the corporate network sends its request to the user proxy, which fetches the page from a public website on the internet and returns it</title>
+                  <!-- Networks first, so the cards and lines draw on top of them. -->
+                  <g class="calm-network-group" style="color: var(--cat-2)">
+                    <rect class="calm-network" x="16" y="16" width="464" height="268" rx="12"/>
+                    <rect class="calm-network-chip" x="28" y="28" width="172" height="22" rx="6"/>
+                    <text class="calm-network-label" x="36" y="43">Corporate network</text>
+                    <text class="calm-network-type" x="28" y="68">network · managed laptops and the proxy</text>
+                  </g>
+                  <g class="calm-network-group">
+                    <rect class="calm-network" x="496" y="16" width="248" height="268" rx="12"/>
+                    <rect class="calm-network-chip" x="508" y="28" width="126" height="22" rx="6"/>
+                    <text class="calm-network-label" x="516" y="43">The internet</text>
+                    <text class="calm-network-type" x="508" y="68">network · public</text>
+                  </g>
+
+                  <!-- interacts: the employee uses the browser (dashed, no arrowhead) -->
+                  <line class="flow" stroke-dasharray="6 6" x1="104" y1="196" x2="104" y2="164"/>
+
+                  <!-- Flow transitions, each drawn from its source to its destination. -->
+                  <g data-step="1" data-lanes="browser user-proxy" data-note="The browser hands the request to the proxy instead of connecting to the website itself. For an HTTPS site it asks the proxy to open a tunnel to that site with an HTTP CONNECT request.">
+                    <line class="flow-user" x1="188" y1="118" x2="300" y2="118" marker-end="url(#ah-user)"/>
+                    <rect class="calm-protocol-bg" x="200" y="92" width="88" height="16" rx="4"/>
+                    <text class="calm-protocol" x="244" y="104">HTTP CONNECT</text>
+                    <circle class="calm-step-bg" cx="244" cy="118" r="10"/><text class="calm-step" x="244" y="122">1</text>
+                  </g>
+                  <g data-step="2" data-lanes="user-proxy website" data-note="Before dialling out, the proxy applies its rules: is this site allowed for this user, and is a fresh copy already in the cache? If the request passes, the proxy opens its own connection to the website across the internet.">
+                    <line class="flow-user" x1="468" y1="118" x2="536" y2="118" marker-end="url(#ah-user)"/>
+                    <rect class="calm-protocol-bg" x="476" y="92" width="52" height="16" rx="4"/>
+                    <text class="calm-protocol" x="502" y="104">HTTPS</text>
+                    <circle class="calm-step-bg" cx="502" cy="118" r="10"/><text class="calm-step" x="502" y="122">2</text>
+                  </g>
+                  <g data-step="3" data-lanes="website user-proxy" data-note="The website answers. As far as it can tell, its visitor is the proxy: it sees the proxy's public IP address, never the employee's laptop.">
+                    <line class="flow" x1="536" y1="146" x2="468" y2="146" marker-end="url(#ah-mut)"/>
+                    <rect class="calm-protocol-bg" x="480" y="152" width="44" height="16" rx="4"/>
+                    <text class="calm-protocol" x="502" y="164">reply</text>
+                    <circle class="calm-step-bg" cx="502" cy="146" r="10"/><text class="calm-step" x="502" y="150">3</text>
+                  </g>
+                  <g data-step="4" data-lanes="user-proxy browser" data-note="The proxy records the visit in its log, may keep a copy of the page in its cache, and passes the reply back to the browser. The employee sees the page as if nothing had been in between.">
+                    <line class="flow" x1="300" y1="146" x2="188" y2="146" marker-end="url(#ah-mut)"/>
+                    <rect class="calm-protocol-bg" x="222" y="152" width="44" height="16" rx="4"/>
+                    <text class="calm-protocol" x="244" y="164">reply</text>
+                    <circle class="calm-step-bg" cx="244" cy="146" r="10"/><text class="calm-step" x="244" y="150">4</text>
+                  </g>
+
+                  <!-- Node cards: 160 by 64, positioned by translate. -->
+                  <g class="calm-node" data-lane="browser" transform="translate(24 100)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                    <text class="calm-node-type" x="27" y="19">webclient</text>
+                    <text class="calm-node-name" x="10" y="40">Browser</text>
+                    <text class="calm-node-detail" x="10" y="56">Sees only the proxy</text>
+                  </g>
+                  <g class="calm-node" transform="translate(24 196)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <text class="calm-node-type" x="27" y="19">actor</text>
+                    <text class="calm-node-name" x="10" y="40">Employee</text>
+                    <text class="calm-node-detail" x="10" y="56">On a managed laptop</text>
+                  </g>
+                  <g class="calm-node is-user" data-lane="user-proxy" transform="translate(304 100)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                    <text class="calm-node-type" x="27" y="19">service</text>
+                    <text class="calm-node-name" x="10" y="40">User proxy</text>
+                    <text class="calm-node-detail" x="10" y="56">Sees who asks for what</text>
+                  </g>
+                  <g class="calm-node" data-lane="website" transform="translate(540 100)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                    <text class="calm-node-type" x="27" y="19">system</text>
+                    <text class="calm-node-name" x="10" y="40">Public website</text>
+                    <text class="calm-node-detail" x="10" y="56">Sees the proxy's IP</text>
+                  </g>
+                </svg>
+              </div>
+              <div class="walk" role="group" aria-label="Walk through the user proxy request">
+                <button type="button" class="walk-btn" data-walk-prev hidden>Back</button>
+                <button type="button" class="walk-btn is-primary" data-walk-next>Walk through</button>
+                <span class="walk-count" data-walk-count>4 steps</span>
+                <button type="button" class="walk-btn" data-walk-reset hidden>Show all</button>
+                <p class="walk-note" data-walk-note aria-live="polite">Press Walk through to follow one request from the browser to the website and back, one hop at a time.</p>
+              </div>
+              <figcaption id="fig-user-caption">CALM architecture: the browser sends its request to the user proxy inside the corporate network; the proxy fetches the page from the public website; the website only ever sees the proxy.</figcaption>
+            </figure>
+            <details class="calm-model">
+              <summary>Read the architecture as CALM JSON</summary>
+              <p>The model the diagram above is drawn from: its nodes, relationships and the four-step flow. It validates against the CALM 1.2 schema with <code>calm validate</code>.</p>
+              <pre><code id="calm-model">{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "metadata": { "title": "A web request through a user proxy (forward proxy)" },
+  "nodes": [
+    { "unique-id": "corporate-network", "node-type": "network", "name": "Corporate network", "description": "The organisation's own network: managed laptops and the user proxy" },
+    { "unique-id": "internet", "node-type": "network", "name": "The internet", "description": "Everything outside the organisation, including the public website" },
+    { "unique-id": "employee", "node-type": "actor", "name": "Employee", "description": "A person browsing the web from a managed work laptop" },
+    { "unique-id": "browser", "node-type": "webclient", "name": "Browser", "description": "Web browser configured to send every web request to the user proxy" },
+    {
+      "unique-id": "user-proxy", "node-type": "service", "name": "User proxy",
+      "description": "Forward proxy (for example Squid or a secure web gateway) that makes outbound requests on behalf of users, applying policy, logging and caching",
+      "interfaces": [{ "unique-id": "user-proxy-http", "host": "proxy.corp.example", "port": 3128 }]
+    },
+    { "unique-id": "website", "node-type": "system", "name": "Public website", "description": "A website on the internet, example.com, which sees the proxy as its visitor" }
+  ],
+  "relationships": [
+    {
+      "unique-id": "employee-uses-browser", "description": "The employee types a web address into the browser",
+      "relationship-type": { "interacts": { "actor": "employee", "nodes": ["browser"] } }
+    },
+    {
+      "unique-id": "browser-to-user-proxy", "description": "The browser sends every web request to the proxy; for HTTPS sites it asks for a tunnel with HTTP CONNECT", "protocol": "HTTP",
+      "relationship-type": { "connects": { "source": { "node": "browser" }, "destination": { "node": "user-proxy", "interfaces": ["user-proxy-http"] } } }
+    },
+    {
+      "unique-id": "user-proxy-to-website", "description": "The proxy opens its own connection to the website across the internet", "protocol": "HTTPS",
+      "relationship-type": { "connects": { "source": { "node": "user-proxy" }, "destination": { "node": "website" } } }
+    },
+    {
+      "unique-id": "corporate-network-deployments", "description": "What sits inside the corporate network",
+      "relationship-type": { "deployed-in": { "container": "corporate-network", "nodes": ["employee", "browser", "user-proxy"] } }
+    },
+    {
+      "unique-id": "internet-deployments", "description": "What sits out on the internet",
+      "relationship-type": { "deployed-in": { "container": "internet", "nodes": ["website"] } }
+    }
+  ],
+  "flows": [
+    {
+      "unique-id": "fetch-a-page-through-the-user-proxy", "name": "Fetch a page through the user proxy",
+      "description": "One web request from an employee's browser to a public website, and the reply coming back",
+      "transitions": [
+        { "relationship-unique-id": "browser-to-user-proxy", "sequence-number": 1, "direction": "source-to-destination",
+          "description": "The browser hands the request to the proxy instead of connecting to the website itself. For an HTTPS site it asks the proxy to open a tunnel to that site with an HTTP CONNECT request." },
+        { "relationship-unique-id": "user-proxy-to-website", "sequence-number": 2, "direction": "source-to-destination",
+          "description": "Before dialling out, the proxy applies its rules: is this site allowed for this user, and is a fresh copy already in the cache? If the request passes, the proxy opens its own connection to the website across the internet." },
+        { "relationship-unique-id": "user-proxy-to-website", "sequence-number": 3, "direction": "destination-to-source",
+          "description": "The website answers. As far as it can tell, its visitor is the proxy: it sees the proxy's public IP address, never the employee's laptop." },
+        { "relationship-unique-id": "browser-to-user-proxy", "sequence-number": 4, "direction": "destination-to-source",
+          "description": "The proxy records the visit in its log, may keep a copy of the page in its cache, and passes the reply back to the browser. The employee sees the page as if nothing had been in between." }
+      ]
+    }
+  ]
+}</code></pre>
+            </details>
+          </div>
+
+          <div>
+            <h3 class="subhead">Step by step</h3>
+            <ol class="steps">
+              <li><span><strong>Browser to proxy.</strong> The browser hands the request to the proxy instead of connecting to the website itself. For an HTTPS site it asks the proxy to open a tunnel to that site with an HTTP CONNECT request.</span></li>
+              <li><span><strong>Proxy to website.</strong> Before dialling out, the proxy applies its rules: is this site allowed for this user, and is a fresh copy already in the cache? If the request passes, the proxy opens its own connection to the website across the internet.</span></li>
+              <li><span><strong>Website to proxy.</strong> The website answers. As far as it can tell, its visitor is the proxy: it sees the proxy's public IP address, never the employee's laptop.</span></li>
+              <li><span><strong>Proxy to browser.</strong> The proxy records the visit in its log, may keep a copy of the page in its cache, and passes the reply back to the browser. The employee sees the page as if nothing had been in between.</span></li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 class="subhead">What each party can see</h3>
+            <div class="sees">
+              <div>
+                <h4><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>The browser sees</h4>
+                <p>Only the proxy. It sends every request to <code>proxy.corp.example</code> and gets the pages back from it.</p>
+                <p>For an HTTPS site the browser still checks the website's real certificate through the tunnel, so it can tell if anyone is reading along, unless the organisation has set up TLS inspection (see below).</p>
+              </div>
+              <div class="is-type">
+                <h4><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>The proxy sees</h4>
+                <p>Who is asking (the user and the device), which site they asked for, and, for plain HTTP or with TLS inspection, the full content of the request and the reply.</p>
+                <p>That visibility is exactly what lets it filter, log and cache.</p>
+              </div>
+              <div>
+                <h4><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>The website sees</h4>
+                <p>A connection from the proxy's public IP address. It cannot tell which person or laptop is behind it.</p>
+                <p>Some proxies announce themselves with a <code>Via</code> header or pass the original address along in a <code>Forwarded</code> header; many deliberately do not.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <aside class="callout">
+              <h3>What about HTTPS?</h3>
+              <p>Most of the web is encrypted with <dfn>TLS</dfn>, the protocol behind HTTPS. A user proxy cannot read an encrypted conversation just by sitting in the middle. By default it only tunnels it: the browser sends an HTTP CONNECT request naming the site, the proxy opens a connection to that site, and the encrypted bytes flow through. The proxy learns <em>which</em> site was visited, from the name in the CONNECT request, but not what was said.</p>
+              <p>Organisations that want to inspect content set up <dfn>TLS inspection</dfn>: the proxy ends the browser's encrypted session itself and starts a fresh one to the website. For the browser not to raise an alarm, the organisation installs its own <dfn>certificate authority</dfn> (the trusted signer behind a certificate) on every managed device. Squid calls this SSL Bump; secure web gateways call it SSL or TLS inspection.</p>
+            </aside>
+            <aside class="callout">
+              <h3>Explicit, transparent or SOCKS?</h3>
+              <p>An <dfn>explicit proxy</dfn> is one the device knows about: the address is set by hand, delivered by a small script called a <dfn>PAC file</dfn> (proxy auto-config), or pushed out by device management. A <dfn>transparent proxy</dfn>, also called an intercepting proxy, is one the device does not know about: the network quietly redirects web traffic to it. A <dfn>SOCKS proxy</dfn> is a third flavour: it relays any connection, not just web requests, without understanding what is inside.</p>
+              <p>All three are user proxies, because all three act for the client.</p>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how-app" class="type-app" aria-labelledby="how-app-title">
+      <div class="container">
+        <div class="section-head typed">
+          <span class="type-badge">Application proxy · reverse proxy</span>
+          <h2 id="how-app-title">How an application proxy works</h2>
+          <p>An <dfn>application proxy</dfn>, more often called a <dfn>reverse proxy</dfn> (the HTTP standard also calls it a <dfn>gateway</dfn>), sits in front of one or more applications and receives requests on their behalf. Visitors connect to the proxy's public address; the proxy decides what to do with each request and forwards the good ones to a <dfn>backend</dfn>, a server that does the real work out of public view.</p>
+          <p>The diagram follows one request from a customer's browser to an online shop and back.</p>
+        </div>
+
+        <div class="stack-lg">
+          <div>
+            <figure class="diagram-frame" aria-labelledby="fig-app-caption" data-walk>
+              <div class="viz-scroll" tabindex="0">
+                <svg viewBox="0 0 760 300" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="fig-app-title fig-app-caption">
+                  <title id="fig-app-title">A customer's browser on the internet connects to the application proxy at the public edge, which forwards the request to one of two backend servers in the private network and returns the reply</title>
+                  <g class="calm-network-group">
+                    <rect class="calm-network" x="16" y="16" width="232" height="268" rx="12"/>
+                    <rect class="calm-network-chip" x="28" y="28" width="126" height="22" rx="6"/>
+                    <text class="calm-network-label" x="36" y="43">The internet</text>
+                    <text class="calm-network-type" x="28" y="68">network · public</text>
+                  </g>
+                  <g class="calm-network-group" style="color: var(--cat-5)">
+                    <rect class="calm-network" x="272" y="16" width="208" height="268" rx="12"/>
+                    <rect class="calm-network-chip" x="284" y="28" width="172" height="22" rx="6"/>
+                    <text class="calm-network-label" x="292" y="43">Public edge (DMZ)</text>
+                    <text class="calm-network-type" x="284" y="68">network · internet-facing</text>
+                  </g>
+                  <g class="calm-network-group" style="color: var(--cat-5)">
+                    <rect class="calm-network" x="504" y="16" width="240" height="268" rx="12"/>
+                    <rect class="calm-network-chip" x="516" y="28" width="154" height="22" rx="6"/>
+                    <text class="calm-network-label" x="524" y="43">Private network</text>
+                    <text class="calm-network-type" x="516" y="68">network · no public addresses</text>
+                  </g>
+
+                  <!-- interacts: the customer uses the browser -->
+                  <line class="flow" stroke-dasharray="6 6" x1="132" y1="196" x2="132" y2="164"/>
+
+                  <!-- The second backend is a normal connects relationship; it is not part of this one request. -->
+                  <line class="flow" x1="456" y1="156" x2="540" y2="222" marker-end="url(#ah-mut)"/>
+                  <rect class="calm-protocol-bg" x="476" y="181" width="44" height="16" rx="4"/>
+                  <text class="calm-protocol" x="498" y="193">HTTP</text>
+
+                  <g data-step="1" data-lanes="client app-proxy" data-note="The public name shop.example points at the proxy, so the customer's browser connects to the proxy and completes the TLS handshake with the proxy's certificate. The browser never learns where the real servers are.">
+                    <line class="flow-app" x1="216" y1="118" x2="292" y2="118" marker-end="url(#ah-app)"/>
+                    <rect class="calm-protocol-bg" x="228" y="92" width="52" height="16" rx="4"/>
+                    <text class="calm-protocol" x="254" y="104">HTTPS</text>
+                    <circle class="calm-step-bg" cx="254" cy="118" r="10"/><text class="calm-step" x="254" y="122">1</text>
+                  </g>
+                  <g data-step="2" data-lanes="app-proxy backend-1" data-note="The proxy decrypts the request and inspects it: web application firewall rules, rate limits and, if configured, a sign-in check. It then picks a healthy backend server, forwards the request across the private network and adds the customer's IP address in an X-Forwarded-For header.">
+                    <line class="flow-app" x1="460" y1="118" x2="540" y2="118" marker-end="url(#ah-app)"/>
+                    <rect class="calm-protocol-bg" x="478" y="92" width="44" height="16" rx="4"/>
+                    <text class="calm-protocol" x="500" y="104">HTTP</text>
+                    <circle class="calm-step-bg" cx="500" cy="118" r="10"/><text class="calm-step" x="500" y="122">2</text>
+                  </g>
+                  <g data-step="3" data-lanes="backend-1 app-proxy" data-note="The backend server does the real work and replies to the proxy. From the server's point of view every request arrives from the proxy, which is why the header added in step 2 matters.">
+                    <line class="flow" x1="540" y1="146" x2="460" y2="146" marker-end="url(#ah-mut)"/>
+                    <rect class="calm-protocol-bg" x="478" y="152" width="44" height="16" rx="4"/>
+                    <text class="calm-protocol" x="500" y="164">reply</text>
+                    <circle class="calm-step-bg" cx="500" cy="146" r="10"/><text class="calm-step" x="500" y="150">3</text>
+                  </g>
+                  <g data-step="4" data-lanes="app-proxy client" data-note="The proxy may cache or compress the response, then encrypts it and sends it back to the customer, who only ever talked to one address: the proxy.">
+                    <line class="flow" x1="292" y1="146" x2="216" y2="146" marker-end="url(#ah-mut)"/>
+                    <rect class="calm-protocol-bg" x="232" y="152" width="44" height="16" rx="4"/>
+                    <text class="calm-protocol" x="254" y="164">reply</text>
+                    <circle class="calm-step-bg" cx="254" cy="146" r="10"/><text class="calm-step" x="254" y="150">4</text>
+                  </g>
+
+                  <g class="calm-node" data-lane="client" transform="translate(52 100)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                    <text class="calm-node-type" x="27" y="19">webclient</text>
+                    <text class="calm-node-name" x="10" y="40">Browser</text>
+                    <text class="calm-node-detail" x="10" y="56">Customer's own device</text>
+                  </g>
+                  <g class="calm-node" transform="translate(52 196)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <text class="calm-node-type" x="27" y="19">actor</text>
+                    <text class="calm-node-name" x="10" y="40">Customer</text>
+                    <text class="calm-node-detail" x="10" y="56">Shopping from home</text>
+                  </g>
+                  <g class="calm-node is-app" data-lane="app-proxy" transform="translate(296 100)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                    <text class="calm-node-type" x="27" y="19">service</text>
+                    <text class="calm-node-name" x="10" y="40">Application proxy</text>
+                    <text class="calm-node-detail" x="10" y="56">Sees the customer's IP</text>
+                  </g>
+                  <g class="calm-node" data-lane="backend-1" transform="translate(544 100)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                    <text class="calm-node-type" x="27" y="19">service</text>
+                    <text class="calm-node-name" x="10" y="40">Backend server 1</text>
+                    <text class="calm-node-detail" x="10" y="56">Sees only the proxy</text>
+                  </g>
+                  <g class="calm-node" transform="translate(544 196)">
+                    <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                    <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                    <text class="calm-node-type" x="27" y="19">service</text>
+                    <text class="calm-node-name" x="10" y="40">Backend server 2</text>
+                    <text class="calm-node-detail" x="10" y="56">Shares the load</text>
+                  </g>
+                </svg>
+              </div>
+              <div class="walk" role="group" aria-label="Walk through the application proxy request">
+                <button type="button" class="walk-btn" data-walk-prev hidden>Back</button>
+                <button type="button" class="walk-btn is-primary" data-walk-next>Walk through</button>
+                <span class="walk-count" data-walk-count>4 steps</span>
+                <button type="button" class="walk-btn" data-walk-reset hidden>Show all</button>
+                <p class="walk-note" data-walk-note aria-live="polite">Press Walk through to follow one request from the customer to a backend server and back, one hop at a time.</p>
+              </div>
+              <figcaption id="fig-app-caption">CALM architecture: the customer's browser connects to the application proxy at the public edge; the proxy forwards the request to one of two backend servers in the private network; the customer only ever sees the proxy.</figcaption>
+            </figure>
+            <details class="calm-model">
+              <summary>Read the architecture as CALM JSON</summary>
+              <p>The model the diagram above is drawn from. It validates against the CALM 1.2 schema with <code>calm validate</code>.</p>
+              <pre><code id="calm-model-app">{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "metadata": { "title": "A web request through an application proxy (reverse proxy)" },
+  "nodes": [
+    { "unique-id": "internet", "node-type": "network", "name": "The internet", "description": "The public internet, where customers and their devices are" },
+    { "unique-id": "public-edge", "node-type": "network", "name": "Public edge (DMZ)", "description": "The organisation's internet-facing segment; only the proxy lives here" },
+    { "unique-id": "private-network", "node-type": "network", "name": "Private network", "description": "Internal segment with no public addresses, where the backend servers run" },
+    { "unique-id": "customer", "node-type": "actor", "name": "Customer", "description": "A member of the public shopping from home" },
+    { "unique-id": "client", "node-type": "webclient", "name": "Browser", "description": "The customer's own browser, which knows only the public name shop.example" },
+    {
+      "unique-id": "app-proxy", "node-type": "service", "name": "Application proxy",
+      "description": "Reverse proxy (for example NGINX, HAProxy, Envoy or a cloud load balancer) that terminates TLS, filters, authenticates and load-balances inbound requests",
+      "interfaces": [{ "unique-id": "app-proxy-https", "host": "shop.example", "port": 443 }]
+    },
+    { "unique-id": "backend-1", "node-type": "service", "name": "Backend server 1", "description": "Application server that does the real work; reachable only from the proxy" },
+    { "unique-id": "backend-2", "node-type": "service", "name": "Backend server 2", "description": "Identical application server sharing the load and standing in if the first fails" }
+  ],
+  "relationships": [
+    {
+      "unique-id": "customer-uses-client", "description": "The customer opens shop.example in the browser",
+      "relationship-type": { "interacts": { "actor": "customer", "nodes": ["client"] } }
+    },
+    {
+      "unique-id": "client-to-app-proxy", "description": "Encrypted request to the public name, which resolves to the proxy", "protocol": "HTTPS",
+      "relationship-type": { "connects": { "source": { "node": "client" }, "destination": { "node": "app-proxy", "interfaces": ["app-proxy-https"] } } }
+    },
+    {
+      "unique-id": "app-proxy-to-backend-1", "description": "Forwarded request inside the private network, with the client address in an X-Forwarded-For header", "protocol": "HTTP",
+      "relationship-type": { "connects": { "source": { "node": "app-proxy" }, "destination": { "node": "backend-1" } } }
+    },
+    {
+      "unique-id": "app-proxy-to-backend-2", "description": "The same forwarding path to the second backend, used when the load balancer picks it", "protocol": "HTTP",
+      "relationship-type": { "connects": { "source": { "node": "app-proxy" }, "destination": { "node": "backend-2" } } }
+    },
+    {
+      "unique-id": "internet-deployments", "description": "What sits out on the internet",
+      "relationship-type": { "deployed-in": { "container": "internet", "nodes": ["customer", "client"] } }
+    },
+    {
+      "unique-id": "public-edge-deployments", "description": "What sits at the public edge",
+      "relationship-type": { "deployed-in": { "container": "public-edge", "nodes": ["app-proxy"] } }
+    },
+    {
+      "unique-id": "private-network-deployments", "description": "What sits in the private network",
+      "relationship-type": { "deployed-in": { "container": "private-network", "nodes": ["backend-1", "backend-2"] } }
+    }
+  ],
+  "flows": [
+    {
+      "unique-id": "serve-a-page-through-the-application-proxy", "name": "Serve a page through the application proxy",
+      "description": "One web request from a customer's browser to a backend server, and the reply coming back",
+      "transitions": [
+        { "relationship-unique-id": "client-to-app-proxy", "sequence-number": 1, "direction": "source-to-destination",
+          "description": "The public name shop.example points at the proxy, so the customer's browser connects to the proxy and completes the TLS handshake with the proxy's certificate. The browser never learns where the real servers are." },
+        { "relationship-unique-id": "app-proxy-to-backend-1", "sequence-number": 2, "direction": "source-to-destination",
+          "description": "The proxy decrypts the request and inspects it: web application firewall rules, rate limits and, if configured, a sign-in check. It then picks a healthy backend server, forwards the request across the private network and adds the customer's IP address in an X-Forwarded-For header." },
+        { "relationship-unique-id": "app-proxy-to-backend-1", "sequence-number": 3, "direction": "destination-to-source",
+          "description": "The backend server does the real work and replies to the proxy. From the server's point of view every request arrives from the proxy, which is why the header added in step 2 matters." },
+        { "relationship-unique-id": "client-to-app-proxy", "sequence-number": 4, "direction": "destination-to-source",
+          "description": "The proxy may cache or compress the response, then encrypts it and sends it back to the customer, who only ever talked to one address: the proxy." }
+      ]
+    }
+  ]
+}</code></pre>
+            </details>
+          </div>
+
+          <div>
+            <h3 class="subhead">Step by step</h3>
+            <ol class="steps">
+              <li><span><strong>Customer to proxy.</strong> The public name <code>shop.example</code> points at the proxy, so the customer's browser connects to the proxy and completes the TLS handshake with the proxy's certificate. The browser never learns where the real servers are.</span></li>
+              <li><span><strong>Proxy to backend.</strong> The proxy decrypts the request and inspects it: web application firewall rules, rate limits and, if configured, a sign-in check. It then picks a healthy backend server, forwards the request across the private network and adds the customer's IP address in an <code>X-Forwarded-For</code> header.</span></li>
+              <li><span><strong>Backend to proxy.</strong> The backend server does the real work and replies to the proxy. From the server's point of view every request arrives from the proxy, which is why the header added in step 2 matters.</span></li>
+              <li><span><strong>Proxy to customer.</strong> The proxy may cache or compress the response, then encrypts it and sends it back to the customer, who only ever talked to one address: the proxy.</span></li>
+            </ol>
+          </div>
+
+          <div>
+            <h3 class="subhead">What each party can see</h3>
+            <div class="sees">
+              <div>
+                <h4><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>The customer sees</h4>
+                <p>One public name, one address and one certificate: <code>shop.example</code>. Not how many servers sit behind it, where they are, or what software they run.</p>
+                <p>If a server is swapped out overnight, nothing changes for the customer.</p>
+              </div>
+              <div class="is-type">
+                <h4><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>The proxy sees</h4>
+                <p>The customer's IP address and, because it holds the certificate and decrypts the traffic, the full request and response.</p>
+                <p>That is what lets it filter attacks, enforce sign-in, route by path or hostname, and cache.</p>
+              </div>
+              <div>
+                <h4><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><line x1="6" y1="7" x2="6.01" y2="7"/><line x1="6" y1="17" x2="6.01" y2="17"/></svg>The backend sees</h4>
+                <p>Connections from the proxy's internal address, one after another. It learns the real client address only from a header the proxy adds, such as <code>X-Forwarded-For</code> or the standard <code>Forwarded</code> header.</p>
+                <p>It should trust that header only when the request really did come from the proxy, because anyone can type a header.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <aside class="callout">
+              <h3>TLS termination, in one paragraph</h3>
+              <p>The proxy holds the website's certificate and private key, so the customer's encrypted connection ends at the proxy. That is <dfn>TLS termination</dfn>. Inside, the proxy usually opens a new encrypted connection to the backend (re-encryption), or plain HTTP if the private network is trusted. A proxy can also leave the encryption untouched and route purely on the server name the client asked for, called <dfn>TLS passthrough</dfn>, but then it cannot read, filter or cache anything.</p>
+            </aside>
+            <aside class="callout">
+              <h3>One name, several meanings</h3>
+              <p>The phrase <em>application proxy</em> is used loosely across the industry. On this page it means a reverse proxy in front of applications, which is what <strong>Microsoft Entra application proxy</strong> is: a cloud reverse proxy that publishes internal web apps to the internet and makes users sign in first. You will also meet:</p>
+              <ul>
+                <li><strong>Application-layer firewalls</strong>, sometimes called proxy firewalls or application proxies: firewalls that end each connection and recreate it on the other side so they can understand the protocol inside.</li>
+                <li><strong>Application gateways</strong>, such as Azure Application Gateway: a cloud load balancer with a web application firewall, which is a reverse proxy under another name.</li>
+                <li><strong>API gateways, ingress controllers and service-mesh sidecars</strong> (Envoy, for example): all reverse proxies with extra jobs. A sidecar is both kinds at once, a reverse proxy for calls coming into its service and a forward proxy for calls going out.</li>
+              </ul>
+              <p>Whatever label a vendor uses, ask the question from the top of the page: who does it work for?</p>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="compare" aria-labelledby="compare-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="compare-title">Side by side</h2>
+          <p>Read across each row: the two columns are the same questions asked of the two proxies.</p>
+        </div>
+
+        <h3 class="subhead" id="glance-title">At a glance</h3>
+        <div class="table-wrap" tabindex="0" role="region" aria-labelledby="glance-title">
+          <table class="compare">
+            <thead>
+              <tr>
+                <th scope="col">Question</th>
+                <th scope="col" class="typed type-user">User proxy</th>
+                <th scope="col" class="typed type-app">Application proxy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Who it works for</th>
+                <td><strong>The users</strong> and the organisation that manages them. It enforces the organisation's rules on what its people and devices reach, and shields them from harmful sites.</td>
+                <td><strong>The applications</strong> and the team that runs them. It shields the servers, controls who gets in, and keeps the service up.</td>
+              </tr>
+              <tr>
+                <th scope="row">Traffic direction</th>
+                <td><strong>Outbound.</strong> Requests start inside and go out to the internet.</td>
+                <td><strong>Inbound.</strong> Requests start on the internet and come in to your servers.</td>
+              </tr>
+              <tr>
+                <th scope="row">Who configures it</th>
+                <td><strong>Whoever manages the client side.</strong> IT pushes the proxy address to devices (settings, a PAC file, device management or a client agent) or redirects traffic at the network. Websites have no say and usually cannot tell.</td>
+                <td><strong>Whoever runs the application.</strong> The platform or operations team points the public name at the proxy and tells the proxy where the backends are. Clients need no configuration and usually cannot tell.</td>
+              </tr>
+              <tr>
+                <th scope="row">What it hides</th>
+                <td><strong>The users.</strong> Their IP addresses, devices and internal network layout are hidden from the websites they visit.</td>
+                <td><strong>The servers.</strong> Their addresses, how many there are and what they run are hidden from the visitors.</td>
+              </tr>
+              <tr>
+                <th scope="row">Also called</th>
+                <td>Forward proxy, web proxy, egress proxy, secure web gateway (SWG), SOCKS proxy.</td>
+                <td>Reverse proxy, gateway, application gateway, load balancer, edge proxy, ingress controller, API gateway.</td>
+              </tr>
+              <tr>
+                <th scope="row">Common products</th>
+                <td>Squid; secure web gateways such as Zscaler Internet Access, Netskope and Cisco Secure Web Appliance; SOCKS proxies such as Dante or an SSH dynamic port forward; developer tools such as mitmproxy, Fiddler and Burp Suite.</td>
+                <td>NGINX, HAProxy, Envoy, Traefik, Caddy, Apache httpd with mod_proxy; cloud load balancers such as AWS Application Load Balancer, Azure Application Gateway and Google Cloud Load Balancing; CDN and WAF services such as Cloudflare and Akamai; Microsoft Entra application proxy; Kubernetes ingress controllers.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="subhead" id="features-title" style="margin-top: var(--space-7)">Feature by feature</h3>
+        <div class="table-wrap" tabindex="0" role="region" aria-labelledby="features-title">
+          <table class="compare">
+            <thead>
+              <tr>
+                <th scope="col">Feature</th>
+                <th scope="col" class="typed type-user">User proxy</th>
+                <th scope="col" class="typed type-app">Application proxy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Caching</th>
+                <td><span class="verdict">Sometimes</span>Historically a main reason to run one. Less useful now that most traffic is encrypted, but still common for software updates and shared downloads.</td>
+                <td><span class="verdict core">Common</span>Keeps copies of pages, images and files so the backends are not asked twice. The same idea, spread around the world, is a content delivery network.</td>
+              </tr>
+              <tr>
+                <th scope="row">Filtering</th>
+                <td><span class="verdict core">Core job</span>Blocks sites by category or reputation, stops malware downloads, enforces an acceptable-use policy, and can check for sensitive data leaving.</td>
+                <td><span class="verdict">A different kind</span>Filters what comes in: known attack patterns, bad bots, and too many requests from one source.</td>
+              </tr>
+              <tr>
+                <th scope="row">TLS termination</th>
+                <td><span class="verdict">Optional</span>Only with TLS inspection, which needs the organisation's own certificate authority on every device. Otherwise it tunnels HTTPS untouched.</td>
+                <td><span class="verdict core">Core job</span>Holds the site's certificate and decrypts incoming HTTPS so it can read and route requests; usually re-encrypts to the backend.</td>
+              </tr>
+              <tr>
+                <th scope="row">Load balancing</th>
+                <td><span class="verdict">Rare</span>Not its purpose. Large deployments run several proxies for capacity, but spreading load across backends is not what it does.</td>
+                <td><span class="verdict core">Core job</span>Spreads requests across servers, checks their health, and routes around failures. Most things sold as load balancers are reverse proxies.</td>
+              </tr>
+              <tr>
+                <th scope="row">Authentication</th>
+                <td><span class="verdict">Common</span>Can demand that the user prove who they are before a request goes out (HTTP status 407), so policy and logs are per person.</td>
+                <td><span class="verdict">Common</span>Can require sign-in before a request reaches the app, adding single sign-on and multi-factor checks to apps that lack them. That is an identity-aware proxy.</td>
+              </tr>
+              <tr>
+                <th scope="row">Web application firewall (WAF)</th>
+                <td><span class="verdict">No</span>It protects users from the web, not the web from users.</td>
+                <td><span class="verdict core">Often built in</span>Inspects requests for attacks such as SQL injection and cross-site scripting and blocks them before they reach the backend.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="when" aria-labelledby="when-title">
+      <div class="container stack-lg">
+        <div class="section-head" style="margin-bottom: 0">
+          <h2 id="when-title">When to use which</h2>
+          <p>Concrete situations, with the tell-tale sign for each: look at which side of the request the problem sits on.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="type-user stack">
+            <span class="type-badge">User proxy</span>
+            <h3>You need a user proxy when</h3>
+            <ul class="scenarios">
+              <li><strong>Staff must not reach harmful or off-limits sites.</strong> A secure web gateway blocks phishing and malware domains and enforces an acceptable-use policy on every office and remote laptop.</li>
+              <li><strong>Auditors want to know who accessed what.</strong> Routing all outbound web traffic through one proxy gives a single log of every request, tied to a user name.</li>
+              <li><strong>Servers need a controlled way out.</strong> Machines in a locked-down network may fetch software updates and packages only through an egress proxy with an allow-list of destinations, so a compromised server cannot call home. A classic zero-trust pattern.</li>
+              <li><strong>A slow link carries the same downloads over and over.</strong> A caching proxy at a branch office, mine site or ship serves repeated updates and shared files locally.</li>
+              <li><strong>You want to see exactly what your app sends.</strong> Developers point a phone or program at a local intercepting proxy such as mitmproxy, Fiddler or Burp Suite to read and replay its requests.</li>
+            </ul>
+          </div>
+          <div class="type-app stack">
+            <span class="type-badge">Application proxy</span>
+            <h3>You need an application proxy when</h3>
+            <ul class="scenarios">
+              <li><strong>Several services need one front door.</strong> One public name and one certificate, with <code>/shop</code> routed to one service and <code>/api</code> to another; nobody outside needs to know how the pieces are split.</li>
+              <li><strong>The site must stay up under load.</strong> The proxy spreads traffic across a pool of servers, checks their health, and quietly drops any that fail. Adding capacity means adding a server behind the proxy.</li>
+              <li><strong>Remote staff need an internal app without a VPN.</strong> An identity-aware application proxy, such as Microsoft Entra application proxy, publishes the intranet app and makes everyone sign in first. Its connector dials out, so no inbound firewall ports are opened.</li>
+              <li><strong>A public app is under attack.</strong> A web application firewall and rate limiting at the proxy block injection attempts, credential stuffing and floods before they reach the application.</li>
+              <li><strong>A legacy app cannot do modern HTTPS itself.</strong> The proxy handles the certificate, compression and caching in front of it, so the old application never has to change.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="both">
+          <div class="badges">
+            <span class="type-badge type-user">User proxy</span>
+            <span class="type-badge type-app">Application proxy</span>
+          </div>
+          <h3>Both at once: one retailer, two directions</h3>
+          <p>Picture a mid-sized online retailer. Its staff browse the web through a cloud secure web gateway: a user proxy that blocks malware, enforces policy and keeps an audit log. At the same time its online shop sits behind a cloud load balancer with a web application firewall: an application proxy that holds the certificate, spreads customer traffic across the shop's servers and hides them from the internet. If it also publishes its intranet HR portal to remote staff through an identity-aware proxy, that is a third proxy, again on the application side.</p>
+          <p>Same organisation, same internet, two proxies pointing in opposite directions. Staff traffic goes out along the orange path; customer traffic comes in along the blue one. Neither proxy knows the other exists, and neither needs to.</p>
+          <figure class="diagram-frame compact" aria-labelledby="fig-both-caption">
+            <div class="viz-scroll" tabindex="0">
+              <svg viewBox="0 0 760 316" role="img" xmlns="http://www.w3.org/2000/svg" aria-labelledby="fig-both-title fig-both-caption">
+                <title id="fig-both-title">One company network with a user proxy carrying staff traffic out to the internet and an application proxy carrying customer traffic in to the shop backend</title>
+                <g class="calm-network-group">
+                  <rect class="calm-network" x="16" y="16" width="464" height="284" rx="12"/>
+                  <rect class="calm-network-chip" x="28" y="28" width="154" height="22" rx="6"/>
+                  <text class="calm-network-label" x="36" y="43">Company network</text>
+                  <text class="calm-network-type" x="28" y="68">network · staff devices, both proxies and the shop</text>
+                </g>
+                <g class="calm-network-group">
+                  <rect class="calm-network" x="496" y="16" width="248" height="284" rx="12"/>
+                  <rect class="calm-network-chip" x="508" y="28" width="126" height="22" rx="6"/>
+                  <text class="calm-network-label" x="516" y="43">The internet</text>
+                  <text class="calm-network-type" x="508" y="68">network · public</text>
+                </g>
+                <text class="calm-row-label" x="24" y="92">Outbound · staff browsing</text>
+                <text class="calm-row-label" x="24" y="188">Inbound · customers shopping</text>
+
+                <!-- Outbound row: staff browser to user proxy to a public website -->
+                <line class="flow-user" x1="188" y1="132" x2="300" y2="132" marker-end="url(#ah-user)"/>
+                <rect class="calm-protocol-bg" x="222" y="108" width="44" height="16" rx="4"/>
+                <text class="calm-protocol" x="244" y="120">HTTP</text>
+                <line class="flow-user" x1="468" y1="132" x2="536" y2="132" marker-end="url(#ah-user)"/>
+                <rect class="calm-protocol-bg" x="476" y="108" width="52" height="16" rx="4"/>
+                <text class="calm-protocol" x="502" y="120">HTTPS</text>
+
+                <!-- Inbound row: customer browser to application proxy to the shop backend -->
+                <line class="flow-app" x1="536" y1="228" x2="468" y2="228" marker-end="url(#ah-app)"/>
+                <rect class="calm-protocol-bg" x="476" y="204" width="52" height="16" rx="4"/>
+                <text class="calm-protocol" x="502" y="216">HTTPS</text>
+                <line class="flow-app" x1="300" y1="228" x2="188" y2="228" marker-end="url(#ah-app)"/>
+                <rect class="calm-protocol-bg" x="222" y="204" width="44" height="16" rx="4"/>
+                <text class="calm-protocol" x="244" y="216">HTTP</text>
+
+                <g class="calm-node" transform="translate(24 100)">
+                  <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                  <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                  <text class="calm-node-type" x="27" y="19">webclient</text>
+                  <text class="calm-node-name" x="10" y="40">Staff browser</text>
+                  <text class="calm-node-detail" x="10" y="56">On a work laptop</text>
+                </g>
+                <g class="calm-node is-user" transform="translate(304 100)">
+                  <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                  <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                  <text class="calm-node-type" x="27" y="19">service</text>
+                  <text class="calm-node-name" x="10" y="40">User proxy</text>
+                  <text class="calm-node-detail" x="10" y="56">Outbound, for staff</text>
+                </g>
+                <g class="calm-node" transform="translate(540 100)">
+                  <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                  <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                  <text class="calm-node-type" x="27" y="19">system</text>
+                  <text class="calm-node-name" x="10" y="40">Public website</text>
+                  <text class="calm-node-detail" x="10" y="56">Any site on the web</text>
+                </g>
+                <g class="calm-node" transform="translate(24 196)">
+                  <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                  <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                  <text class="calm-node-type" x="27" y="19">service</text>
+                  <text class="calm-node-name" x="10" y="40">Shop backend</text>
+                  <text class="calm-node-detail" x="10" y="56">Has no public address</text>
+                </g>
+                <g class="calm-node is-app" transform="translate(304 196)">
+                  <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                  <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                  <text class="calm-node-type" x="27" y="19">service</text>
+                  <text class="calm-node-name" x="10" y="40">Application proxy</text>
+                  <text class="calm-node-detail" x="10" y="56">Inbound, for the shop</text>
+                </g>
+                <g class="calm-node" transform="translate(540 196)">
+                  <rect class="calm-node-box" width="160" height="64" rx="8"/>
+                  <svg class="calm-node-icon" x="10" y="9" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                  <text class="calm-node-type" x="27" y="19">webclient</text>
+                  <text class="calm-node-name" x="10" y="40">Customer browser</text>
+                  <text class="calm-node-detail" x="10" y="56">Customer's own device</text>
+                </g>
+              </svg>
+            </div>
+            <figcaption id="fig-both-caption">CALM architecture: the same company runs a user proxy for staff traffic going out (top row, orange) and an application proxy for customer traffic coming in (bottom row, blue).</figcaption>
+          </figure>
+          <details class="calm-model">
+            <summary>Read the architecture as CALM JSON</summary>
+            <p>The model the diagram above is drawn from. Two directions, so no single flow; the relationships carry the story.</p>
+            <pre><code id="calm-model-both">{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "metadata": { "title": "One organisation running a user proxy and an application proxy" },
+  "nodes": [
+    { "unique-id": "company-network", "node-type": "network", "name": "Company network", "description": "The retailer's own network: staff devices, both proxies and the shop backend" },
+    { "unique-id": "internet", "node-type": "network", "name": "The internet", "description": "The public internet: other companies' websites and the retailer's customers" },
+    { "unique-id": "staff-browser", "node-type": "webclient", "name": "Staff browser", "description": "A browser on a staff laptop, configured to use the user proxy" },
+    { "unique-id": "user-proxy", "node-type": "service", "name": "User proxy", "description": "Secure web gateway carrying staff web traffic out: filtering, logging and caching" },
+    { "unique-id": "public-website", "node-type": "system", "name": "Public website", "description": "Any website a member of staff visits" },
+    { "unique-id": "customer-browser", "node-type": "webclient", "name": "Customer browser", "description": "A customer's browser anywhere on the internet" },
+    { "unique-id": "app-proxy", "node-type": "service", "name": "Application proxy", "description": "Cloud load balancer with a web application firewall, carrying customer traffic in to the shop",
+      "interfaces": [{ "unique-id": "app-proxy-https", "host": "shop.example", "port": 443 }] },
+    { "unique-id": "shop-backend", "node-type": "service", "name": "Shop backend", "description": "The online shop's application servers, with no public address" }
+  ],
+  "relationships": [
+    {
+      "unique-id": "staff-browser-to-user-proxy", "description": "Staff web requests go to the user proxy first", "protocol": "HTTP",
+      "relationship-type": { "connects": { "source": { "node": "staff-browser" }, "destination": { "node": "user-proxy" } } }
+    },
+    {
+      "unique-id": "user-proxy-to-public-website", "description": "The user proxy fetches pages from the internet on behalf of staff", "protocol": "HTTPS",
+      "relationship-type": { "connects": { "source": { "node": "user-proxy" }, "destination": { "node": "public-website" } } }
+    },
+    {
+      "unique-id": "customer-browser-to-app-proxy", "description": "Customers connect to the shop's public name, which is the application proxy", "protocol": "HTTPS",
+      "relationship-type": { "connects": { "source": { "node": "customer-browser" }, "destination": { "node": "app-proxy", "interfaces": ["app-proxy-https"] } } }
+    },
+    {
+      "unique-id": "app-proxy-to-shop-backend", "description": "The application proxy forwards accepted requests to the shop backend", "protocol": "HTTP",
+      "relationship-type": { "connects": { "source": { "node": "app-proxy" }, "destination": { "node": "shop-backend" } } }
+    },
+    {
+      "unique-id": "company-network-deployments", "description": "What sits inside the company network",
+      "relationship-type": { "deployed-in": { "container": "company-network", "nodes": ["staff-browser", "user-proxy", "app-proxy", "shop-backend"] } }
+    },
+    {
+      "unique-id": "internet-deployments", "description": "What sits out on the internet",
+      "relationship-type": { "deployed-in": { "container": "internet", "nodes": ["public-website", "customer-browser"] } }
+    }
+  ]
+}</code></pre>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="myths" class="section-narrow" aria-labelledby="myths-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="myths-title">Common misconceptions</h2>
+          <p>Six things people say about proxies that are not quite right.</p>
+        </div>
+        <ul class="myths">
+          <li>
+            <p class="myth-claim"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>A proxy is the same as a VPN.</span></p>
+            <p class="myth-truth"><strong>Not the same.</strong> A VPN (virtual private network) wraps all of a device's network traffic in an encrypted tunnel to a VPN server, whatever application produced it. A proxy works at the application level, usually just for web traffic, and does not encrypt anything by itself. Both can hide your address from the far end, which is why they get confused. Many consumer VPN apps are proxies under the hood, and modern zero-trust access services are built from proxies rather than VPNs.</p>
+          </li>
+          <li>
+            <p class="myth-claim"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>Reverse proxies are only for load balancing.</span></p>
+            <p class="myth-truth"><strong>Load balancing is one job among many.</strong> TLS termination, a web application firewall, caching, compression, sign-in, routing by path or hostname, rate limiting, and hiding the backend layout are all reverse-proxy jobs. A reverse proxy in front of a single server is still worth having.</p>
+          </li>
+          <li>
+            <p class="myth-claim"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>Going through a proxy makes me anonymous.</span></p>
+            <p class="myth-truth"><strong>It hides your address from the website, not your activity from the proxy.</strong> The proxy sees everything you do and usually logs it, tied to your user name. It may pass your real address on in a header. And the website can still recognise you by your login or cookies.</p>
+          </li>
+          <li>
+            <p class="myth-claim"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>A proxy encrypts my traffic.</span></p>
+            <p class="myth-truth"><strong>Encryption is the job of TLS, not of the proxy.</strong> A user proxy normally tunnels HTTPS without touching it; with TLS inspection it actually decrypts it. A reverse proxy decrypts incoming HTTPS and may send plain HTTP to the backend. Whether a hop is encrypted depends on how it is configured, not on the word proxy.</p>
+          </li>
+          <li>
+            <p class="myth-claim"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>If the app sits behind a reverse proxy, it is secure.</span></p>
+            <p class="myth-truth"><strong>Less exposed is not the same as secure.</strong> The proxy can block common attacks, but it does not fix bugs in the application, and it brings risks of its own: a backend that trusts an <code>X-Forwarded-For</code> header from anyone can be fooled, and a misconfigured proxy can leak internal addresses. Patch the app, harden the proxy, and trust forwarded headers only from the proxy.</p>
+          </li>
+          <li>
+            <p class="myth-claim"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg><span>Proxies only handle web pages.</span></p>
+            <p class="myth-truth"><strong>The pattern is general; the web is just where most people meet it.</strong> SOCKS proxies relay any connection without understanding what is inside, and reverse proxies such as HAProxy and Envoy forward raw connections to databases and message queues as happily as they forward web requests.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="quiz" class="section-narrow" aria-labelledby="quiz-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="quiz-title">Check yourself</h2>
+          <p>Five questions. Pick an answer and the explanation appears.</p>
+        </div>
+        <div class="quiz">
+          <div class="quiz-item">
+            <p class="quiz-q" id="q1"><span class="qn">1/5</span>Your IT team installs a server that every staff laptop must send its web requests through, so that gambling and malware sites can be blocked. What is it?</p>
+            <ul class="quiz-opts" aria-labelledby="q1">
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">A</span><span>An application proxy</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="true"><span class="key">B</span><span>A user proxy</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">C</span><span>A load balancer</span></button></li>
+            </ul>
+            <p class="quiz-answer" hidden aria-live="polite"><strong class="quiz-verdict"></strong>It acts on the users' side, handling outbound requests and filtering what they can reach. That is a user (forward) proxy, typically a secure web gateway.</p>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q" id="q2"><span class="qn">2/5</span>A public website runs on three servers, yet every visitor connects to one name and sees one certificate. What is making that possible?</p>
+            <ul class="quiz-opts" aria-labelledby="q2">
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">A</span><span>A user proxy</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">B</span><span>A VPN</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="true"><span class="key">C</span><span>An application proxy</span></button></li>
+            </ul>
+            <p class="quiz-answer" hidden aria-live="polite"><strong class="quiz-verdict"></strong>A reverse proxy owns the public name, terminates TLS and spreads inbound requests across the backends. The visitor never sees the three servers.</p>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q" id="q3"><span class="qn">3/5</span>A request goes through a user proxy. What does the destination website see as the source of the connection?</p>
+            <ul class="quiz-opts" aria-labelledby="q3">
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">A</span><span>The employee's laptop address</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="true"><span class="key">B</span><span>The proxy's address</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">C</span><span>Nothing: the request is anonymous</span></button></li>
+            </ul>
+            <p class="quiz-answer" hidden aria-live="polite"><strong class="quiz-verdict"></strong>The proxy opens its own connection, so the website sees the proxy's public IP address. It might still learn more from headers the proxy adds or from the user's login, so this is not anonymity.</p>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q" id="q4"><span class="qn">4/5</span>An application proxy is said to terminate TLS. What does that mean?</p>
+            <ul class="quiz-opts" aria-labelledby="q4">
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">A</span><span>It blocks all HTTPS traffic</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="true"><span class="key">B</span><span>It holds the site's certificate and decrypts incoming HTTPS so it can read and route each request</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">C</span><span>It ends the visitor's session after a timeout</span></button></li>
+            </ul>
+            <p class="quiz-answer" hidden aria-live="polite"><strong class="quiz-verdict"></strong>The encrypted connection from the client ends at the proxy. Inside, the proxy usually re-encrypts to the backend, or uses plain HTTP on a trusted private network.</p>
+          </div>
+          <div class="quiz-item">
+            <p class="quiz-q" id="q5"><span class="qn">5/5</span>Who configures a user proxy, and who configures an application proxy?</p>
+            <ul class="quiz-opts" aria-labelledby="q5">
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">A</span><span>The website owner configures the user proxy; the user configures the application proxy</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="true"><span class="key">B</span><span>Whoever manages the users' devices configures the user proxy; whoever runs the application configures the application proxy</span></button></li>
+              <li><button type="button" class="quiz-opt" data-correct="false"><span class="key">C</span><span>Both are configured by the internet service provider</span></button></li>
+            </ul>
+            <p class="quiz-answer" hidden aria-live="polite"><strong class="quiz-verdict"></strong>Each proxy is set up by the side it works for. The other side usually never knows it is there.</p>
+          </div>
+        </div>
+        <p class="quiz-score" aria-live="polite">Answer all five to see your score.</p>
+      </div>
+    </section>
+
+    <section id="glossary" class="section-narrow" aria-labelledby="glossary-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="glossary-title">Glossary</h2>
+          <p>The terms this page leans on, in alphabetical order.</p>
+        </div>
+        <dl class="glossary">
+          <dt>Application proxy</dt>
+          <dd>A proxy that sits in front of applications and receives inbound requests for them; a reverse proxy. Also a product name (Microsoft Entra application proxy) and, confusingly, an old name for application-layer firewalls.</dd>
+          <dt>Backend</dt>
+          <dd>A server that does an application's real work, out of public view, behind an application proxy.</dd>
+          <dt>Cache</dt>
+          <dd>A stored copy of a response, kept so the same request can be answered again without going back to the server.</dd>
+          <dt>Certificate authority (CA)</dt>
+          <dd>The trusted organisation that signs a server's certificate, the document that proves a server is who it claims to be. TLS inspection works by adding the organisation's own CA to its devices.</dd>
+          <dt>CONNECT</dt>
+          <dd>The HTTP request a browser sends to a user proxy to ask for a tunnel to an HTTPS site.</dd>
+          <dt>DMZ (public edge)</dt>
+          <dd>A network segment that faces the internet. The application proxy lives here; the backends do not.</dd>
+          <dt>Forward proxy</dt>
+          <dd>The usual name for a user proxy.</dd>
+          <dt>Forwarded and X-Forwarded-For</dt>
+          <dd>HTTP headers a proxy adds to tell the next server the original client's address. Forwarded is the standard; X-Forwarded-For came first and is still more common.</dd>
+          <dt>Gateway</dt>
+          <dd>The HTTP standard's word for a reverse proxy.</dd>
+          <dt>Identity-aware proxy</dt>
+          <dd>A reverse proxy that makes users sign in before forwarding their requests, adding authentication to applications that lack it.</dd>
+          <dt>Load balancing</dt>
+          <dd>Spreading incoming requests across several servers and routing around any that fail.</dd>
+          <dt>PAC file</dt>
+          <dd>Proxy auto-config: a small script that tells a browser which proxy to use for which address.</dd>
+          <dt>Reverse proxy</dt>
+          <dd>The usual name for an application proxy.</dd>
+          <dt>Secure web gateway (SWG)</dt>
+          <dd>A user proxy, often cloud-hosted, bundled with web filtering, malware scanning and data-loss prevention.</dd>
+          <dt>SOCKS</dt>
+          <dd>A proxy protocol that relays any connection (TCP, and UDP in version 5) without understanding the application inside.</dd>
+          <dt>TLS</dt>
+          <dd>Transport Layer Security, the encryption behind HTTPS.</dd>
+          <dt>TLS inspection</dt>
+          <dd>A user proxy decrypting and re-encrypting HTTPS so it can see the content. Needs the organisation's CA on each device.</dd>
+          <dt>TLS termination</dt>
+          <dd>A reverse proxy holding the site's certificate and decrypting incoming HTTPS at the edge.</dd>
+          <dt>Transparent (intercepting) proxy</dt>
+          <dd>A user proxy the device is not configured for; the network redirects traffic to it instead.</dd>
+          <dt>User proxy</dt>
+          <dd>A proxy that sits in front of users and makes outbound requests for them; a forward proxy.</dd>
+          <dt>VPN</dt>
+          <dd>Virtual private network: an encrypted tunnel for all of a device's network traffic to a VPN server, below the level of any single application.</dd>
+          <dt>Web application firewall (WAF)</dt>
+          <dd>A filter, usually at a reverse proxy, that blocks requests matching known attack patterns.</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section id="reading" class="section-narrow" aria-labelledby="reading-title">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="reading-title">Further reading</h2>
+          <p>Primary sources only: the standards that define the terms and the official documentation of the products named above.</p>
+        </div>
+        <ul class="reading">
+          <li>
+            <a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7" rel="noopener noreferrer" target="_blank">RFC 9110, HTTP Semantics, section 3.7: Intermediaries<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">The formal definitions: a proxy is chosen by the client; a gateway (reverse proxy) acts as an origin server; a tunnel is a blind relay.</span>
+          </li>
+          <li>
+            <a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6" rel="noopener noreferrer" target="_blank">RFC 9110, section 9.3.6: CONNECT<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">How a browser asks a user proxy to tunnel an HTTPS connection, and what the proxy may and may not do with it.</span>
+          </li>
+          <li>
+            <a href="https://www.rfc-editor.org/rfc/rfc7239.html" rel="noopener noreferrer" target="_blank">RFC 7239, Forwarded HTTP Extension<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">The standard header a proxy uses to pass the original client address along, and how it relates to X-Forwarded-For.</span>
+          </li>
+          <li>
+            <a href="https://www.rfc-editor.org/rfc/rfc1928.html" rel="noopener noreferrer" target="_blank">RFC 1928, SOCKS Protocol Version 5<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">The protocol behind SOCKS proxies: relaying any connection without understanding the application inside.</span>
+          </li>
+          <li>
+            <a href="https://wiki.squid-cache.org/Features/SslBump" rel="noopener noreferrer" target="_blank">Squid wiki: SslBump<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">How a forward proxy inspects HTTPS, and why browsers object unless the organisation's certificate authority is trusted on the device.</span>
+          </li>
+          <li>
+            <a href="https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/" rel="noopener noreferrer" target="_blank">NGINX documentation: NGINX Reverse Proxy<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">A hands-on reverse-proxy configuration guide, including how to pass the client address to the backend in a header.</span>
+          </li>
+          <li>
+            <a href="https://www.envoyproxy.io/docs/envoy/latest/intro/what_is_envoy" rel="noopener noreferrer" target="_blank">Envoy documentation: What is Envoy<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">A modern proxy that runs both as an edge reverse proxy and as a sidecar next to each service.</span>
+          </li>
+          <li>
+            <a href="https://learn.microsoft.com/en-us/entra/identity/app-proxy/overview-what-is-app-proxy" rel="noopener noreferrer" target="_blank">Microsoft Learn: Microsoft Entra application proxy<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <span class="note">An application proxy delivered as a cloud service: how the outbound-only connector publishes on-premises web apps with sign-in enforced first.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <span>&copy; <span id="year"></span> James Buckett</span>
+      <span>One file, no external scripts. Built with <code>skill-style-guide</code></span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const root = document.documentElement;
+      let stored = null;
+      try { stored = localStorage.getItem('theme'); } catch { /* storage can be denied on file:// */ }
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-theme', stored ?? (prefersDark ? 'dark' : 'light'));
+
+      const btn = document.getElementById('theme-toggle');
+      btn?.addEventListener('click', () => {
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch { /* ignore */ }
+      });
+
+      const yr = document.getElementById('year');
+      if (yr) yr.textContent = new Date().getFullYear();
+
+      // Walkthrough stepper on the ordered diagrams: one step at a time, the rest dimmed
+      document.querySelectorAll('[data-walk]').forEach((fig) => {
+        const steps = Array.from(fig.querySelectorAll('[data-step]'));
+        const prev = fig.querySelector('[data-walk-prev]');
+        const next = fig.querySelector('[data-walk-next]');
+        const reset = fig.querySelector('[data-walk-reset]');
+        const count = fig.querySelector('[data-walk-count]');
+        const note = fig.querySelector('[data-walk-note]');
+        if (!steps.length || !prev || !next || !reset || !count || !note) return;
+        const total = Math.max(...steps.map((s) => Number(s.dataset.step)));
+        const unit = count.textContent.replace(/^\d+\s*/, '');
+        const idleNote = note.textContent;
+        const lanes = Array.from(fig.querySelectorAll('[data-lane]'));
+        const svg = fig.querySelector('svg');
+        const stillMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // On narrow screens the frame scrolls sideways: bring the current step into view.
+        const scroller = svg ? svg.parentElement : null;
+        const reveal = (el) => {
+          if (!svg || !scroller || !el.getBBox || scroller.scrollWidth <= scroller.clientWidth + 1) return;
+          const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+          const svgLeft = svg.getBoundingClientRect().left - scroller.getBoundingClientRect().left + scroller.scrollLeft;
+          const box = el.getBBox();
+          const x0 = svgLeft + box.x * scale;
+          const x1 = svgLeft + (box.x + box.width) * scale;
+          if (x0 < scroller.scrollLeft || x1 > scroller.scrollLeft + scroller.clientWidth) {
+            scroller.scrollTo({ left: Math.max(0, x0 - 24), behavior: stillMotion ? 'auto' : 'smooth' });
+          }
+        };
+        let cur = 0;
+        const render = () => {
+          fig.classList.toggle('is-walking', cur > 0);
+          let current = null;
+          steps.forEach((s) => {
+            const k = Number(s.dataset.step);
+            s.classList.toggle('is-current', k === cur);
+            s.classList.toggle('is-done', cur > 0 && k < cur);
+            if (k === cur && !current) current = s;
+          });
+          if (current && current.ownerSVGElement) reveal(current);
+          const active = current ? (current.dataset.lanes || '').split(' ') : [];
+          lanes.forEach((l) => l.classList.toggle('is-lane-active', active.includes(l.dataset.lane)));
+          prev.hidden = cur === 0;
+          prev.disabled = cur <= 1;
+          next.textContent = cur === 0 ? 'Walk through' : 'Next';
+          next.disabled = cur >= total;
+          reset.hidden = cur === 0;
+          count.textContent = cur === 0 ? `${total} ${unit}` : `${cur} of ${total}`;
+          note.textContent = current ? current.dataset.note : idleNote;
+        };
+        const go = (k) => { cur = Math.min(Math.max(k, 0), total); render(); };
+        prev.addEventListener('click', () => go(cur - 1));
+        next.addEventListener('click', () => go(cur + 1));
+        reset.addEventListener('click', () => go(0));
+        fig.addEventListener('keydown', (e) => {
+          if (cur === 0) return;
+          if (e.key === 'ArrowRight') { e.preventDefault(); go(cur + 1); }
+          else if (e.key === 'ArrowLeft') { e.preventDefault(); go(Math.max(cur - 1, 1)); }
+          else if (e.key === 'Escape') { e.preventDefault(); go(0); }
+        });
+        render();
+      });
+
+      // Self-check quiz: pick an option, see the verdict and the explanation
+      const items = Array.from(document.querySelectorAll('.quiz-item'));
+      const score = document.querySelector('.quiz-score');
+      let answered = 0;
+      let correct = 0;
+      items.forEach((item) => {
+        const opts = Array.from(item.querySelectorAll('.quiz-opt'));
+        const answer = item.querySelector('.quiz-answer');
+        const verdict = item.querySelector('.quiz-verdict');
+        opts.forEach((opt) => opt.addEventListener('click', () => {
+          if (item.classList.contains('is-answered')) return;
+          item.classList.add('is-answered');
+          const right = opt.dataset.correct === 'true';
+          opts.forEach((o) => {
+            o.setAttribute('aria-disabled', 'true');
+            if (o.dataset.correct === 'true') o.classList.add('is-correct');
+            else if (o === opt) o.classList.add('is-wrong');
+          });
+          opt.setAttribute('aria-pressed', 'true');
+          verdict.textContent = right ? 'Correct. ' : 'Not quite. ';
+          answer.hidden = false;
+          answered += 1;
+          if (right) correct += 1;
+          if (!score) return;
+          if (answered < items.length) {
+            score.innerHTML = `<strong>${correct} of ${answered}</strong> correct so far.`;
+          } else {
+            score.innerHTML = `You scored <strong>${correct} of ${items.length}</strong>.` +
+              (correct === items.length ? ' You can tell the two apart at a glance.' : ' Re-read the TL;DR, reload the page and try the ones you missed again.');
+          }
+        }));
+      });
+    })();
+  </script>
+</body>
+</html>
