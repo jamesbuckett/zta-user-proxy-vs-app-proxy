@@ -229,6 +229,75 @@
     [data-theme="dark"]  #icon-sun  { display: block; }
 
     /* ------------------------------------------------------------------
+       Table of contents (left rail, desktop only)
+       Lives in the whitespace beside the 960px column, so it needs at
+       least a 200px gutter: shown from 1360px up, growing to 220px wide
+       from 1480px. Hidden while the hero is in view; the script reveals
+       it once the reader scrolls into the body.
+       ------------------------------------------------------------------ */
+    .toc {
+      --toc-gutter: calc((100vw - var(--max-width)) / 2);
+      --toc-width: min(220px, calc(var(--toc-gutter) - var(--space-5) - var(--space-4)));
+      display: none;
+      position: fixed;
+      top: var(--space-9);
+      left: calc(var(--toc-gutter) - var(--toc-width) - var(--space-4));
+      width: var(--toc-width);
+      max-height: calc(100vh - var(--space-9) - var(--space-5));
+      overflow-y: auto;
+      padding: var(--space-4) var(--space-2);
+      z-index: 5;
+      opacity: 0;
+      visibility: hidden; /* keeps the hidden rail out of the Tab order */
+      transform: translateX(calc(-1 * var(--space-2)));
+      pointer-events: none;
+      transition: opacity 240ms ease, transform 240ms ease, visibility 0s linear 240ms;
+    }
+    @media (min-width: 1360px) { .toc { display: block; } }
+    .toc.is-revealed {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+      pointer-events: auto;
+      transition: opacity 240ms ease, transform 240ms ease;
+    }
+    .toc-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 var(--space-3);
+      margin-bottom: var(--space-3);
+    }
+    .toc ol {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .toc li { margin: 0; }
+    .toc a {
+      display: block;
+      padding: var(--space-2) var(--space-3);
+      border-left: 2px solid var(--border);
+      color: var(--text-muted);
+      font-size: var(--fs-small);
+      line-height: 1.4;
+      transition: color var(--transition), border-color var(--transition);
+    }
+    .toc a:hover {
+      color: var(--text);
+      border-left-color: var(--border-strong);
+    }
+    .toc a.is-active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* ------------------------------------------------------------------
        Hero
        ------------------------------------------------------------------ */
     .hero {
@@ -831,6 +900,22 @@
       </nav>
     </div>
   </header>
+
+  <nav class="toc" aria-label="On this page">
+    <span class="toc-label">On this page</span>
+    <ol>
+      <li><a href="#tldr">TL;DR</a></li>
+      <li><a href="#analogies">Two analogies</a></li>
+      <li><a href="#how-user">How a user proxy works</a></li>
+      <li><a href="#how-app">How an application proxy works</a></li>
+      <li><a href="#compare">Side by side</a></li>
+      <li><a href="#when">When to use which</a></li>
+      <li><a href="#myths">Common misconceptions</a></li>
+      <li><a href="#quiz">Check yourself</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+      <li><a href="#reading">Further reading</a></li>
+    </ol>
+  </nav>
 
   <main id="top">
     <section class="hero" aria-labelledby="hero-title">
@@ -1935,6 +2020,46 @@
           }
         }));
       });
+
+      // Table of contents: hidden over the hero, shown once the body is in view
+      const tocEl = document.querySelector('.toc');
+      const heroEl = document.querySelector('.hero');
+      if (tocEl) {
+        const showToc = (on) => tocEl.classList.toggle('is-revealed', on);
+        if (heroEl && 'IntersectionObserver' in window) {
+          // The top offset matches the sticky header so the rail does not flicker under it.
+          const heroObserver = new IntersectionObserver(
+            ([entry]) => showToc(!entry.isIntersecting),
+            { rootMargin: '-80px 0px 0px 0px', threshold: 0 }
+          );
+          heroObserver.observe(heroEl);
+        } else {
+          const onScroll = () => showToc(window.scrollY > 200);
+          onScroll();
+          window.addEventListener('scroll', onScroll, { passive: true });
+        }
+      }
+
+      // Table of contents: mark the link whose section is currently in view
+      const tocLinks = Array.from(document.querySelectorAll('.toc a'));
+      if (tocLinks.length && 'IntersectionObserver' in window) {
+        const linkMap = new Map();
+        tocLinks.forEach((link) => {
+          const target = document.getElementById(link.getAttribute('href').slice(1));
+          if (target) linkMap.set(target, link);
+        });
+        const setActive = (link) => tocLinks.forEach((l) => l.classList.toggle('is-active', l === link));
+        // The zone is the band from the header down to 40% of the viewport. Of the
+        // sections touching it, the last in document order is the one being read.
+        const sections = Array.from(linkMap.keys());
+        const inZone = new Set();
+        const sectionObserver = new IntersectionObserver((entries) => {
+          entries.forEach((e) => (e.isIntersecting ? inZone.add(e.target) : inZone.delete(e.target)));
+          const current = sections.filter((s) => inZone.has(s)).pop();
+          if (current) setActive(linkMap.get(current));
+        }, { rootMargin: '-80px 0px -60% 0px', threshold: 0 });
+        sections.forEach((target) => sectionObserver.observe(target));
+      }
     })();
   </script>
 </body>
