@@ -20,7 +20,7 @@ git clone https://github.com/jamesbuckett/zta-user-proxy-vs-app-proxy.git
 xdg-open zta-user-proxy-vs-app-proxy/index.html   # macOS: open, Windows: start
 ```
 
-Press **Walk through** under either request-flow diagram to step through one request a hop at a time, use the header button to switch between light and dark themes, and pick answers in the quiz to reveal the explanations.
+Press **Walk through** under either request-flow diagram to step through one request a hop at a time, use the header button to switch between light and dark themes, and pick answers in the quiz to reveal the explanations. On wide screens a table of contents appears down the left side once you scroll past the introduction; it jumps to any section and highlights the one you are reading.
 
 ## Contributing
 
